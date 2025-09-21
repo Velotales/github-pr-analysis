@@ -20,7 +20,7 @@ import json
 import subprocess
 import sys
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict, Counter
 import statistics
 
@@ -34,20 +34,24 @@ def run_command(cmd):
         print(f"Error: {e.stderr}")
         return None
 
-def get_pull_requests(repo, limit=100):
+def get_pull_requests(repo, limit=100, since_date=None):
     """Fetch pull requests from the repository"""
     print(f"Fetching pull requests from {repo}...")
-    
-    # Remove 'commits' from the fields here
     cmd = f'gh pr list --repo {repo} --state all --limit {limit} --json number,title,mergedAt,createdAt,baseRefName,headRefName,mergeable'
     output = run_command(cmd)
-    
     if not output:
         return []
-    
     try:
         prs = json.loads(output)
         print(f"Found {len(prs)} pull requests")
+        # Filter by since_date if provided
+        if since_date:
+            since_dt = datetime.strptime(since_date, "%Y-%m-%dT%H:%M:%SZ")
+            prs = [
+                pr for pr in prs
+                if pr.get('createdAt') and datetime.strptime(pr['createdAt'], "%Y-%m-%dT%H:%M:%SZ") >= since_dt
+            ]
+            print(f"Filtered to {len(prs)} PRs created since {since_date}")
         return prs
     except json.JSONDecodeError:
         print("Error parsing PR data")
@@ -67,14 +71,32 @@ def get_pr_commits(repo, pr_number):
     except json.JSONDecodeError:
         return []
 
-def get_branch_commits(repo, branch='main', limit=500):
-    """Get commit SHAs from the branch (default: main)"""
-    # Correct usage: --paginate and -q come before the endpoint
+def get_branch_commits(repo, branch='main', since_date=None):
+    """Get commit SHAs from the branch (default: main), optionally since a date"""
     cmd = f'gh api --paginate -q ".[].sha" repos/{repo}/commits?sha={branch}&per_page=100'
+    if since_date:
+        cmd += f"&since={since_date}"
     output = run_command(cmd)
     if not output:
         return []
     return output.splitlines()
+
+def get_commit_dates(repo, branch='main', since_date=None):
+    """Get commit SHAs and their dates from the branch"""
+    cmd = f'gh api --paginate -q ".[] | {{sha: .sha, date: .commit.author.date}}" repos/{repo}/commits?sha={branch}&per_page=100'
+    if since_date:
+        cmd += f"&since={since_date}"
+    output = run_command(cmd)
+    if not output:
+        return []
+    # Output is JSON objects, one per line
+    commits = []
+    for line in output.splitlines():
+        try:
+            commits.append(json.loads(line))
+        except Exception:
+            pass
+    return commits
 
 def get_direct_commits(repo, branch='main', since_date=None):
     """Get commits that went directly to main/master branch"""
@@ -184,9 +206,9 @@ def main():
     parser.add_argument('repo', help='Repository in format owner/repo')
     parser.add_argument('--limit', type=int, default=100, help='Limit number of PRs to analyze')
     parser.add_argument('--branch', default='main', help='Main branch name (default: main)')
-    
+    parser.add_argument('--days', type=int, default=None, help='Only include PRs and commits from the last N days')
     args = parser.parse_args()
-    
+
     # Check if gh is authenticated
     auth_check = run_command('gh auth status')
     if not auth_check or 'Logged in' not in auth_check:
@@ -196,15 +218,22 @@ def main():
     
     print(f"Analyzing repository: {args.repo}")
     
+    # Calculate since_date if --days is provided
+    since_date = None
+    if args.days:
+        since_dt = datetime.now(timezone.utc) - timedelta(days=args.days)
+        since_date = since_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        print(f"Filtering analysis to items since {since_date}")
+
     # Get repository info
     repo_info = get_repository_info(args.repo)
     if repo_info:
         default_branch = (repo_info.get('defaultBranchRef') or {}).get('name', args.branch)
         print(f"Default branch: {default_branch}")
         args.branch = default_branch
-    
+
     # Analyze pull requests
-    prs = get_pull_requests(args.repo, args.limit)
+    prs = get_pull_requests(args.repo, args.limit, since_date=since_date)
     total_pr_commits, avg_commits, pr_sizes = analyze_pr_metrics(prs, args.repo)
 
     # --- Direct commit analysis ---
@@ -220,13 +249,62 @@ def main():
             commits = get_pr_commits(args.repo, pr['number'])
             merged_pr_shas.update(c['oid'] for c in commits if 'oid' in c)
 
-    # 2. Get all commit SHAs from the default branch
-    branch_shas = get_branch_commits(args.repo, args.branch)
+    # 2. Get all commit SHAs and dates from the default branch
+    branch_commits = get_commit_dates(args.repo, args.branch, since_date=since_date)
+    branch_shas = [c['sha'] for c in branch_commits]
 
     # 3. Count SHAs on branch that are not in merged PRs
-    direct_commits = [sha for sha in branch_shas if sha not in merged_pr_shas]
+    direct_commits = [c for c in branch_commits if c['sha'] not in merged_pr_shas]
     print(f"Total commits on branch '{args.branch}': {len(branch_shas)}")
     print(f"Direct commits (not in merged PRs): {len(direct_commits)}")
+
+    # --- DORA METRICS ---
+    print(f"\n{'='*60}")
+    print("DORA METRICS (estimates, includes direct commits)")
+    print(f"{'='*60}")
+
+    # Deployment Frequency (merged PRs + direct commits per day)
+    if since_date:
+        since_dt = datetime.strptime(since_date, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        days = (datetime.now(timezone.utc) - since_dt).days or 1
+    else:
+        # Use all time
+        all_dates = []
+        if prs:
+            all_dates += [datetime.strptime(pr['createdAt'], "%Y-%m-%dT%H:%M:%SZ") for pr in prs if pr.get('createdAt')]
+        if direct_commits:
+            all_dates += [datetime.strptime(c['date'], "%Y-%m-%dT%H:%M:%SZ") for c in direct_commits if c.get('date')]
+        if all_dates:
+            oldest = min(all_dates)
+            days = (datetime.now(timezone.utc) - oldest.replace(tzinfo=timezone.utc)).days or 1
+        else:
+            days = 1
+
+    merged_prs = [pr for pr in prs if pr.get('mergedAt')]
+    num_direct_commits = len(direct_commits)
+    deployment_frequency = (len(merged_prs) + num_direct_commits) / days
+    print(f"Deployment Frequency (merged PRs + direct commits per day): {deployment_frequency:.2f}")
+
+    # Lead Time for Changes (average time from PR open to merge, or 0 for direct commits)
+    lead_times = []
+    for pr in merged_prs:
+        try:
+            created = datetime.strptime(pr['createdAt'], "%Y-%m-%dT%H:%M:%SZ")
+            merged = datetime.strptime(pr['mergedAt'], "%Y-%m-%dT%H:%M:%SZ")
+            lead_times.append((merged - created).total_seconds() / 3600)  # hours
+        except Exception:
+            continue
+    # For direct commits, lead time is 0
+    lead_times += [0] * num_direct_commits
+    if lead_times:
+        avg_lead_time_hours = sum(lead_times) / len(lead_times)
+        print(f"Lead Time for Changes (avg, includes direct commits): {avg_lead_time_hours:.1f} hours ({avg_lead_time_hours/24:.2f} days)")
+    else:
+        print("Lead Time for Changes: N/A")
+
+    # Change Failure Rate and MTTR: Not available from PR/commit data
+    print("Change Failure Rate: N/A (requires incident or revert tracking)")
+    print("Mean Time to Recovery: N/A (requires incident or revert tracking)")
 
     # Summary
     print(f"\n" + "="*60)
