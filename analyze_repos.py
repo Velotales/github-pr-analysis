@@ -10,13 +10,13 @@ commit patterns across all their repositories:
 - Exports results to CSV for further analysis
 
 Usage:
-    python3 analyze_org_repos.py <organization_or_user> [options]
+    python3 analyze_repos.py <organization_or_user> [options]
 
 Examples:
-    python3 analyze_org_repos.py mycompany          # Analyze organization
-    python3 analyze_org_repos.py johndoe            # Analyze user's repos
-    python3 analyze_org_repos.py mycompany --private-only --limit 50
-    python3 analyze_org_repos.py johndoe --export-csv results.csv
+    python3 analyze_repos.py mycompany          # Analyze organization
+    python3 analyze_repos.py johndoe            # Analyze user's repos
+    python3 analyze_repos.py mycompany --private-only --limit 50
+    python3 analyze_repos.py johndoe --export-csv results.csv
 
 Requirements:
     - GitHub CLI (gh) must be installed and authenticated

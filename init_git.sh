@@ -39,11 +39,11 @@ git commit -m "Initial commit: GitHub PR Analysis Tools
 - Comprehensive documentation
 
 Tools included:
-- analyze_org_repos.py: Main organization analysis
+- analyze_repos.py: Main repository analysis (orgs & users)
 - setup_org_analysis.sh: Interactive setup helper
 - github_pr_metrics.py: Single repo GitHub API analysis
 - git_commit_analysis.py: Local git history analysis
-- analyze_repo.sh: Single repo wrapper script"
+- analyze_repo.sh: Single repo wrapper script
 
 echo ""
 echo -e "${GREEN}Git repository initialized successfully!${NC}"

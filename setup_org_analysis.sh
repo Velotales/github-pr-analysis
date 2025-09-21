@@ -63,22 +63,22 @@ show_usage() {
     echo -e "${BLUE}Usage Examples:${NC}"
     echo ""
     echo "1. Analyze all repositories for an organization:"
-    echo "   python3 analyze_org_repos.py mycompany"
+    echo "   python3 analyze_repos.py mycompany"
     echo ""
     echo "2. Analyze all repositories for a user:"
-    echo "   python3 analyze_org_repos.py johndoe"
+    echo "   python3 analyze_repos.py johndoe"
     echo ""
     echo "3. Analyze only private repositories:"
-    echo "   python3 analyze_org_repos.py mycompany --private-only"
+    echo "   python3 analyze_repos.py mycompany --private-only"
     echo ""
     echo "4. Export results to CSV:"
-    echo "   python3 analyze_org_repos.py johndoe --export-csv results.csv"
+    echo "   python3 analyze_repos.py johndoe --export-csv results.csv"
     echo ""
     echo "5. Quick test (first 5 repos only):"
-    echo "   python3 analyze_org_repos.py mycompany --repo-limit 5"
+    echo "   python3 analyze_repos.py mycompany --repo-limit 5"
     echo ""
     echo "6. Just list repositories without analyzing:"
-    echo "   python3 analyze_org_repos.py johndoe --skip-analysis"
+    echo "   python3 analyze_repos.py johndoe --skip-analysis"
     echo ""
     echo -e "${YELLOW}Options:${NC}"
     echo "  --private-only    Only analyze private repositories"
@@ -175,11 +175,11 @@ main() {
         echo -e "${GREEN}Running analysis for account: ${ACCOUNT_NAME}${NC}"
         echo ""
         
-        python3 "./analyze_org_repos.py" "$ACCOUNT_NAME" "$@"
+        python3 "./analyze_repos.py" "$ACCOUNT_NAME" "$@"
     fi
 }
 
 # Make the main script executable
-chmod +x "./analyze_org_repos.py" 2>/dev/null || true
+chmod +x "./analyze_repos.py" 2>/dev/null || true
 
 main "$@"

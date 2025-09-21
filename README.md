@@ -13,13 +13,13 @@ This collection of tools allows you to analyze pull request metrics across all r
 
 ### 2. Analyze all repositories for an organization or user:
 ```bash
-python3 analyze_org_repos.py your-company-name    # Organization
-python3 analyze_org_repos.py johndoe              # User
+python3 analyze_repos.py your-company-name    # Organization
+python3 analyze_repos.py johndoe              # User
 ```
 
 ### 3. Export results to CSV for further analysis:
 ```bash
-python3 analyze_org_repos.py your-account --export-csv results.csv
+python3 analyze_repos.py your-account --export-csv results.csv
 ```
 
 ## 📊 What You'll Get
@@ -41,8 +41,8 @@ python3 analyze_org_repos.py your-account --export-csv results.csv
 
 ## 🛠 Tools Included
 
-### 1. `analyze_org_repos.py` - Main Analysis Script
-The comprehensive tool that discovers and analyzes all repositories in an organization.
+### 1. `analyze_repos.py` - Main Analysis Script
+The comprehensive tool that discovers and analyzes all repositories for an organization or user.
 
 **Key Features:**
 - Discovers all repositories you have access to (private and public)
@@ -75,31 +75,31 @@ Easy-to-use script for analyzing individual repositories.
 ### Basic Analysis
 ```bash
 # Analyze all repositories for an organization
-python3 analyze_org_repos.py mycompany
+python3 analyze_repos.py mycompany
 
 # Analyze all repositories for a user
-python3 analyze_org_repos.py johndoe
+python3 analyze_repos.py johndoe
 
 # Only analyze private repositories
-python3 analyze_org_repos.py mycompany --private-only
+python3 analyze_repos.py mycompany --private-only
 
 # Quick test with first 5 repositories only
-python3 analyze_org_repos.py johndoe --repo-limit 5
+python3 analyze_repos.py johndoe --repo-limit 5
 ```
 
 ### Advanced Options
 ```bash
 # Analyze with custom PR limit per repo and export to CSV
-python3 analyze_org_repos.py mycompany --limit 200 --export-csv detailed_results.csv
+python3 analyze_repos.py mycompany --limit 200 --export-csv detailed_results.csv
 
 # Just list repositories without analyzing (useful for testing)
-python3 analyze_org_repos.py johndoe --skip-analysis
+python3 analyze_repos.py johndoe --skip-analysis
 
 # Analyze only public repositories for a user
-python3 analyze_org_repos.py johndoe --public-only
+python3 analyze_repos.py johndoe --public-only
 
 # Analyze only private repositories for an organization
-python3 analyze_org_repos.py mycompany --private-only
+python3 analyze_repos.py mycompany --private-only
 ```
 
 ### Using the Setup Helper
