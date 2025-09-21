@@ -193,6 +193,67 @@ def analyze_pr_vs_direct_commits(repo_path='.', branch='main'):
         'estimated_direct_commits': estimated_direct_commits if 'estimated_direct_commits' in locals() else non_merge_commits
     }
 
+def compute_pr_vs_direct_commit_ratio(repo_path='.', branch='main'):
+    """
+    Robustly analyzes all commits on the branch, distinguishing those merged via PRs (using merge commits)
+    from direct commits. Prints and returns the counts and ratio.
+    """
+    print("\n" + "="*60)
+    print("ROBUST PR VS DIRECT COMMIT RATIO ANALYSIS")
+    print("="*60)
+
+    # Get all commits on the branch
+    all_commits = run_git_command(f'git rev-list {branch}', repo_path)
+    if not all_commits:
+        print("No commits found on branch for analysis.")
+        return None
+    all_commits = all_commits.splitlines()
+    all_commits_set = set(all_commits)
+    print(f"Total commits on {branch}: {len(all_commits_set)}")
+
+    # Get all merge commits (typically PR merges)
+    merge_commits = run_git_command(f'git log --merges --pretty=format:"%H" {branch}', repo_path)
+    if not merge_commits:
+        print("No merge commits found.")
+        pr_commits_on_main = set()
+    else:
+        merge_commits = merge_commits.splitlines()
+        print(f"Total merge commits: {len(merge_commits)}")
+        pr_commits_set = set()
+        for merge_sha in merge_commits:
+            parents_line = run_git_command(f'git rev-list --parents -n 1 {merge_sha}', repo_path)
+            if not parents_line:
+                continue
+            parents = parents_line.split()
+            if len(parents) >= 3:
+                # merge_sha parent1 parent2
+                parent1, parent2 = parents[1], parents[2]
+                # Commits in PR: those in parent2 not in parent1
+                pr_commits = run_git_command(f'git rev-list {parent2} ^{parent1}', repo_path)
+                if pr_commits:
+                    pr_commits_set.update(pr_commits.splitlines())
+        # Only count PR commits that are present on the main branch
+        pr_commits_on_main = pr_commits_set & all_commits_set
+
+    direct_commits = all_commits_set - pr_commits_on_main
+
+    print(f"Commits merged via PRs: {len(pr_commits_on_main)}")
+    print(f"Direct commits: {len(direct_commits)}")
+    if len(all_commits_set) > 0:
+        print(f"Ratio (PR:Direct): {len(pr_commits_on_main)}/{len(direct_commits)} "
+              f"({len(pr_commits_on_main)/len(all_commits_set)*100:.1f}% PR, "
+              f"{len(direct_commits)/len(all_commits_set)*100:.1f}% direct)")
+    else:
+        print("No commits to calculate ratio.")
+
+    return {
+        'total_commits': len(all_commits_set),
+        'pr_commits': len(pr_commits_on_main),
+        'direct_commits': len(direct_commits),
+        'pr_ratio': len(pr_commits_on_main)/len(all_commits_set) if all_commits_set else 0,
+        'direct_ratio': len(direct_commits)/len(all_commits_set) if all_commits_set else 0,
+    }
+
 def analyze_commit_timeline(repo_path='.', branch='main'):
     """Analyze commit patterns over time"""
     print("\n" + "="*60)
@@ -293,6 +354,9 @@ def main():
     # Analyze commits
     commit_stats = analyze_pr_vs_direct_commits(args.repo_path, args.branch)
     
+    # === Robust PR vs Direct commit ratio analysis ===
+    pr_direct_stats = compute_pr_vs_direct_commit_ratio(args.repo_path, args.branch)
+    
     # Timeline analysis
     analyze_commit_timeline(args.repo_path, args.branch)
     
@@ -315,6 +379,11 @@ def main():
             print(f"Estimated direct commits: {(direct_commits / total) * 100:.1f}%")
         
         print(f"PR merge commits: {commit_stats['pr_merges']}")
+    if pr_direct_stats:
+        print("\n== Robust commit ratio analysis ==")
+        print(f"PR commits: {pr_direct_stats['pr_commits']} ({pr_direct_stats['pr_ratio']*100:.1f}%)")
+        print(f"Direct commits: {pr_direct_stats['direct_commits']} ({pr_direct_stats['direct_ratio']*100:.1f}%)")
+        print(f"Total commits (robust): {pr_direct_stats['total_commits']}")
 
 if __name__ == '__main__':
     main()
