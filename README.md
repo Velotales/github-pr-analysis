@@ -8,7 +8,7 @@ This collection of tools allows you to analyze pull request metrics across all r
 
 ### 1. Set up authentication and test access:
 ```bash
-./setup_org_analysis.sh
+./setup_analysis.sh
 ```
 
 ### 2. Analyze all repositories for an organization or user:
@@ -52,7 +52,7 @@ The comprehensive tool that discovers and analyzes all repositories for an organ
 - Handles rate limiting and timeouts gracefully
 - Filters out inactive repositories (optional)
 
-### 2. `setup_org_analysis.sh` - Setup Helper
+### 2. `setup_analysis.sh` - Setup Helper
 An interactive script that helps with authentication and testing.
 
 **Features:**
@@ -105,15 +105,15 @@ python3 analyze_repos.py mycompany --private-only
 ### Using the Setup Helper
 ```bash
 # Interactive setup and guidance
-./setup_org_analysis.sh
+./setup_analysis.sh
 
 # Test access to an organization or user
-./setup_org_analysis.sh --test mycompany
-./setup_org_analysis.sh --test johndoe
+./setup_analysis.sh --test mycompany
+./setup_analysis.sh --test johndoe
 
 # Run analysis with setup verification
-./setup_org_analysis.sh mycompany --private-only --export-csv results.csv
-./setup_org_analysis.sh johndoe --export-csv user_results.csv
+./setup_analysis.sh mycompany --private-only --export-csv results.csv
+./setup_analysis.sh johndoe --export-csv user_results.csv
 ```
 
 ## 📄 Sample Output
@@ -230,7 +230,7 @@ The authentication needs these permissions:
 
 ## 🎯 Next Steps
 
-1. **Run your first analysis**: Start with `./setup_org_analysis.sh`
+1. **Run your first analysis**: Start with `./setup_analysis.sh`
 2. **Export to CSV**: Use the data in spreadsheets for custom analysis
 3. **Schedule regular analysis**: Consider running monthly to track trends
 4. **Share insights**: Use the summary reports to discuss development practices
