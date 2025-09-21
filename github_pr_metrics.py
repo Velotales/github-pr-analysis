@@ -69,8 +69,8 @@ def get_pr_commits(repo, pr_number):
 
 def get_branch_commits(repo, branch='main', limit=500):
     """Get commit SHAs from the branch (default: main)"""
-    # Correct usage: add '?sha=branch&per_page=100' to the endpoint
-    cmd = f'gh api repos/{repo}/commits?sha={branch}&per_page=100 --paginate -q ".[].sha"'
+    # Correct usage: --paginate and -q come before the endpoint
+    cmd = f'gh api --paginate -q ".[].sha" repos/{repo}/commits?sha={branch}&per_page=100'
     output = run_command(cmd)
     if not output:
         return []
