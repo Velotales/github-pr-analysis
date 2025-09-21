@@ -138,7 +138,7 @@ def analyze_single_repo(org, repo_name, pr_limit=100):
     full_repo_name = f"{org}/{repo_name}"
     
     # Get basic repo info
-    repo_cmd = f'gh repo view {full_repo_name} --json name,description,primaryLanguage,stargazerCount,forkCount,defaultBranch,pushedAt'
+    repo_cmd = f'gh repo view {full_repo_name} --json name,description,primaryLanguage,stargazerCount,forkCount,defaultBranchRef,pushedAt'
     repo_info_raw = run_command(repo_cmd)
     
     repo_info = {}
@@ -162,7 +162,7 @@ def analyze_single_repo(org, repo_name, pr_limit=100):
         'language': language,
         'stars': repo_info.get('stargazerCount', 0),
         'forks': repo_info.get('forkCount', 0),
-        'default_branch': repo_info.get('defaultBranch', 'main'),
+        'default_branch': (repo_info.get('defaultBranchRef') or {}).get('name', 'main'),
         'last_push': repo_info.get('pushedAt', 'Unknown'),
         'total_prs': 0,
         'merged_prs': 0,
