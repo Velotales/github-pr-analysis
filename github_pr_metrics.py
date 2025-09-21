@@ -67,6 +67,15 @@ def get_pr_commits(repo, pr_number):
     except json.JSONDecodeError:
         return []
 
+def get_branch_commits(repo, branch='main', limit=500):
+    """Get commit SHAs from the branch (default: main)"""
+    # Correct usage: add '?sha=branch&per_page=100' to the endpoint
+    cmd = f'gh api repos/{repo}/commits?sha={branch}&per_page=100 --paginate -q ".[].sha"'
+    output = run_command(cmd)
+    if not output:
+        return []
+    return output.splitlines()
+
 def get_direct_commits(repo, branch='main', since_date=None):
     """Get commits that went directly to main/master branch"""
     print(f"Fetching direct commits to {branch} branch...")
@@ -197,16 +206,28 @@ def main():
     # Analyze pull requests
     prs = get_pull_requests(args.repo, args.limit)
     total_pr_commits, avg_commits, pr_sizes = analyze_pr_metrics(prs, args.repo)
-    
-    # Try to get direct commits (this is more complex and might need repository access)
+
+    # --- Direct commit analysis ---
     print(f"\n" + "="*60)
     print("DIRECT COMMIT ANALYSIS")
     print("="*60)
-    print("Note: Analyzing direct commits requires more complex logic")
-    print("to distinguish PR commits from direct commits.")
-    print("This would typically require cloning the repository locally")
-    print("and analyzing the git history in detail.")
-    
+    print("Counting direct commits to the default branch...")
+
+    # 1. Get all commit SHAs from merged PRs
+    merged_pr_shas = set()
+    for pr in prs:
+        if pr.get('mergedAt'):
+            commits = get_pr_commits(args.repo, pr['number'])
+            merged_pr_shas.update(c['oid'] for c in commits if 'oid' in c)
+
+    # 2. Get all commit SHAs from the default branch
+    branch_shas = get_branch_commits(args.repo, args.branch)
+
+    # 3. Count SHAs on branch that are not in merged PRs
+    direct_commits = [sha for sha in branch_shas if sha not in merged_pr_shas]
+    print(f"Total commits on branch '{args.branch}': {len(branch_shas)}")
+    print(f"Direct commits (not in merged PRs): {len(direct_commits)}")
+
     # Summary
     print(f"\n" + "="*60)
     print("SUMMARY")
