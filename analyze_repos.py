@@ -34,7 +34,7 @@ from collections import defaultdict, Counter
 import statistics
 import time
 
-def run_command(cmd, timeout=300):
+def run_command(cmd, timeout=300, suppress_errors=False):
     """Run a shell command with timeout and return the output"""
     try:
         result = subprocess.run(
@@ -47,19 +47,21 @@ def run_command(cmd, timeout=300):
         )
         return result.stdout.strip()
     except subprocess.TimeoutExpired:
-        print(f"Command timed out: {cmd}")
+        if not suppress_errors:
+            print(f"Command timed out: {cmd}")
         return None
     except subprocess.CalledProcessError as e:
-        print(f"Error running command: {cmd}")
-        print(f"Error: {e.stderr}")
+        if not suppress_errors:
+            print(f"Error running command: {cmd}")
+            print(f"Error: {e.stderr}")
         return None
 
 def detect_account_type(account):
     """Detect if the account is an organization or user"""
     print(f"Detecting account type for: {account}")
     
-    # Try organization API first
-    org_check = run_command(f'gh api orgs/{account}')
+    # Try organization API first (suppress expected 404 errors)
+    org_check = run_command(f'gh api orgs/{account}', suppress_errors=True)
     if org_check:
         try:
             org_data = json.loads(org_check)
@@ -69,7 +71,7 @@ def detect_account_type(account):
             pass
     
     # Try user API
-    user_check = run_command(f'gh api users/{account}')
+    user_check = run_command(f'gh api users/{account}', suppress_errors=True)
     if user_check:
         try:
             user_data = json.loads(user_check)
@@ -85,7 +87,7 @@ def get_repositories(account, account_type, include_private=True, include_public
     print(f"Discovering repositories for {account_type}: {account}")
     
     # Build the command - gh repo list works for both orgs and users
-    cmd_parts = ['gh', 'repo', 'list', account, '--json', 'name,private,language,updatedAt,pushedAt,stargazerCount']
+    cmd_parts = ['gh', 'repo', 'list', account, '--json', 'name,primaryLanguage,updatedAt,pushedAt,stargazerCount,visibility']
     
     if include_private and not include_public:
         cmd_parts.extend(['--visibility', 'private'])
@@ -136,7 +138,7 @@ def analyze_single_repo(org, repo_name, pr_limit=100):
     full_repo_name = f"{org}/{repo_name}"
     
     # Get basic repo info
-    repo_cmd = f'gh repo view {full_repo_name} --json name,description,language,stargazerCount,forkCount,defaultBranch,pushedAt'
+    repo_cmd = f'gh repo view {full_repo_name} --json name,description,primaryLanguage,stargazerCount,forkCount,defaultBranch,pushedAt'
     repo_info_raw = run_command(repo_cmd)
     
     repo_info = {}
@@ -147,13 +149,17 @@ def analyze_single_repo(org, repo_name, pr_limit=100):
             pass
     
     # Get pull requests
-    pr_cmd = f'gh pr list --repo {full_repo_name} --state all --limit {pr_limit} --json number,title,commits,mergedAt,createdAt,author'
+    pr_cmd = f'gh pr list --repo {full_repo_name} --state all --limit {pr_limit} --json number,title,mergedAt,createdAt'
     pr_output = run_command(pr_cmd, timeout=120)
+    
+    # Extract language from primaryLanguage object
+    primary_lang = repo_info.get('primaryLanguage')
+    language = primary_lang.get('name') if primary_lang else 'Unknown'
     
     metrics = {
         'repo_name': repo_name,
         'full_name': full_repo_name,
-        'language': repo_info.get('language', 'Unknown'),
+        'language': language,
         'stars': repo_info.get('stargazerCount', 0),
         'forks': repo_info.get('forkCount', 0),
         'default_branch': repo_info.get('defaultBranch', 'main'),
@@ -390,8 +396,11 @@ def main():
     if args.skip_analysis:
         print("\nRepositories found:")
         for repo in repos:
-            privacy = "private" if repo.get('private', False) else "public"
-            print(f"  {repo['name']} ({privacy}) - {repo.get('language', 'Unknown')}")
+            visibility = repo.get('visibility', 'unknown')
+            # primaryLanguage is an object with a 'name' field, or None
+            language = repo.get('primaryLanguage')
+            lang_name = language.get('name') if language else 'Unknown'
+            print(f"  {repo['name']} ({visibility}) - {lang_name}")
         return
     
     # Analyze each repository
