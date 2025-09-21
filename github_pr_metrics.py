@@ -128,8 +128,8 @@ def analyze_pr_metrics(prs, repo):
     
     if not prs:
         print("No pull requests found")
-        return 0, 0, {}
-    
+        return 0, 0, {}, []
+
     # Basic statistics
     total_prs = len(prs)
     merged_prs = [pr for pr in prs if pr.get('mergedAt')]
@@ -183,9 +183,9 @@ def analyze_pr_metrics(prs, repo):
             percentage = (count / len(commit_counts)) * 100
             print(f"  {size}: {count} PRs ({percentage:.1f}%)")
         
-        return total_pr_commits, avg_commits, pr_sizes
+        return total_pr_commits, avg_commits, pr_sizes, merged_prs
     
-    return 0, 0, {}
+    return 0, 0, {}, merged_prs
 
 def get_repository_info(repo):
     """Get basic repository information"""
@@ -234,7 +234,7 @@ def main():
 
     # Analyze pull requests
     prs = get_pull_requests(args.repo, args.limit, since_date=since_date)
-    total_pr_commits, avg_commits, pr_sizes = analyze_pr_metrics(prs, args.repo)
+    total_pr_commits, avg_commits, pr_sizes, merged_prs = analyze_pr_metrics(prs, args.repo)
 
     # --- Direct commit analysis ---
     print(f"\n" + "="*60)
@@ -263,27 +263,34 @@ def main():
     print("DORA METRICS (estimates, includes direct commits)")
     print(f"{'='*60}")
 
-    # Deployment Frequency (merged PRs + direct commits per day)
-    if since_date:
-        since_dt = datetime.strptime(since_date, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-        days = (datetime.now(timezone.utc) - since_dt).days or 1
-    else:
-        # Use all time
-        all_dates = []
-        if prs:
-            all_dates += [datetime.strptime(pr['createdAt'], "%Y-%m-%dT%H:%M:%SZ") for pr in prs if pr.get('createdAt')]
-        if direct_commits:
-            all_dates += [datetime.strptime(c['date'], "%Y-%m-%dT%H:%M:%SZ") for c in direct_commits if c.get('date')]
-        if all_dates:
-            oldest = min(all_dates)
-            days = (datetime.now(timezone.utc) - oldest.replace(tzinfo=timezone.utc)).days or 1
-        else:
-            days = 1
+    # Gather all deployment dates (merged PRs and direct commits)
+    deployment_dates = []
+    for pr in merged_prs:
+        if pr.get('mergedAt'):
+            try:
+                deployment_dates.append(datetime.strptime(pr['mergedAt'], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc))
+            except Exception:
+                pass
+    for c in direct_commits:
+        if c.get('date'):
+            try:
+                deployment_dates.append(datetime.strptime(c['date'], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc))
+            except Exception:
+                pass
 
-    merged_prs = [pr for pr in prs if pr.get('mergedAt')]
-    num_direct_commits = len(direct_commits)
-    deployment_frequency = (len(merged_prs) + num_direct_commits) / days
+    total_deployments = len(deployment_dates)
+    if total_deployments >= 2:
+        first_deploy = min(deployment_dates)
+        last_deploy = max(deployment_dates)
+        days = (last_deploy - first_deploy).days or 1
+        date_range_str = f"{first_deploy.strftime('%Y-%m-%d')} to {last_deploy.strftime('%Y-%m-%d')}"
+    else:
+        days = 1
+        date_range_str = "N/A"
+
+    deployment_frequency = total_deployments / days
     print(f"Deployment Frequency (merged PRs + direct commits per day): {deployment_frequency:.2f}")
+    print(f"  (Date range: {date_range_str})")
 
     # Lead Time for Changes (average time from PR open to merge, or 0 for direct commits)
     lead_times = []
@@ -295,7 +302,7 @@ def main():
         except Exception:
             continue
     # For direct commits, lead time is 0
-    lead_times += [0] * num_direct_commits
+    lead_times += [0] * len(direct_commits)
     if lead_times:
         avg_lead_time_hours = sum(lead_times) / len(lead_times)
         print(f"Lead Time for Changes (avg, includes direct commits): {avg_lead_time_hours:.1f} hours ({avg_lead_time_hours/24:.2f} days)")
