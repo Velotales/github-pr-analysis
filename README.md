@@ -1,6 +1,6 @@
-# GitHub Organization PR Analysis Tools
+# GitHub Repository PR Analysis Tools
 
-This collection of tools allows you to analyze pull request metrics across all repositories in a GitHub organization, including private repositories you have access to.
+This collection of tools allows you to analyze pull request metrics across all repositories for a GitHub organization or user, including private repositories you have access to.
 
 > **Note:** All commands should be run from the project directory where these scripts are located.
 
@@ -11,21 +11,22 @@ This collection of tools allows you to analyze pull request metrics across all r
 ./setup_org_analysis.sh
 ```
 
-### 2. Analyze all repositories in your organization:
+### 2. Analyze all repositories for an organization or user:
 ```bash
-python3 analyze_org_repos.py your-company-name
+python3 analyze_org_repos.py your-company-name    # Organization
+python3 analyze_org_repos.py johndoe              # User
 ```
 
 ### 3. Export results to CSV for further analysis:
 ```bash
-python3 analyze_org_repos.py your-company-name --export-csv results.csv
+python3 analyze_org_repos.py your-account --export-csv results.csv
 ```
 
 ## 📊 What You'll Get
 
-### Organization-Wide Metrics:
-- **Total repositories analyzed**
-- **Overall PR merge rate** across the organization
+### Account-Wide Metrics:
+- **Total repositories analyzed** (organization or user)
+- **Overall PR merge rate** across all repositories
 - **Language distribution** (which programming languages are most used)
 - **PR size patterns** (single commit vs multi-commit PRs)
 - **Most active repositories** by PR volume
@@ -71,16 +72,19 @@ Easy-to-use script for analyzing individual repositories.
 
 ## 📋 Usage Examples
 
-### Basic Organization Analysis
+### Basic Analysis
 ```bash
-# Analyze all repositories in the organization
+# Analyze all repositories for an organization
 python3 analyze_org_repos.py mycompany
+
+# Analyze all repositories for a user
+python3 analyze_org_repos.py johndoe
 
 # Only analyze private repositories
 python3 analyze_org_repos.py mycompany --private-only
 
 # Quick test with first 5 repositories only
-python3 analyze_org_repos.py mycompany --repo-limit 5
+python3 analyze_org_repos.py johndoe --repo-limit 5
 ```
 
 ### Advanced Options
@@ -89,10 +93,13 @@ python3 analyze_org_repos.py mycompany --repo-limit 5
 python3 analyze_org_repos.py mycompany --limit 200 --export-csv detailed_results.csv
 
 # Just list repositories without analyzing (useful for testing)
-python3 analyze_org_repos.py mycompany --skip-analysis
+python3 analyze_org_repos.py johndoe --skip-analysis
 
-# Analyze only public repositories
-python3 analyze_org_repos.py mycompany --public-only
+# Analyze only public repositories for a user
+python3 analyze_org_repos.py johndoe --public-only
+
+# Analyze only private repositories for an organization
+python3 analyze_org_repos.py mycompany --private-only
 ```
 
 ### Using the Setup Helper
@@ -100,11 +107,13 @@ python3 analyze_org_repos.py mycompany --public-only
 # Interactive setup and guidance
 ./setup_org_analysis.sh
 
-# Test access to an organization
+# Test access to an organization or user
 ./setup_org_analysis.sh --test mycompany
+./setup_org_analysis.sh --test johndoe
 
 # Run analysis with setup verification
 ./setup_org_analysis.sh mycompany --private-only --export-csv results.csv
+./setup_org_analysis.sh johndoe --export-csv user_results.csv
 ```
 
 ## 📄 Sample Output

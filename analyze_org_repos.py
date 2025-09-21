@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """
-GitHub Organization Repository Analysis Tool
+GitHub Repository Analysis Tool
 
-This script analyzes all repositories in a GitHub organization to understand
-commit patterns across the entire organization:
+This script analyzes all repositories for a GitHub organization or user to understand
+commit patterns across all their repositories:
 - Discovers all repositories the user has access to
 - Runs PR metrics analysis on each repository
-- Generates organization-wide summary reports
+- Generates comprehensive summary reports
 - Exports results to CSV for further analysis
 
 Usage:
-    python3 analyze_org_repos.py <organization> [options]
+    python3 analyze_org_repos.py <organization_or_user> [options]
 
 Examples:
-    python3 analyze_org_repos.py mycompany
+    python3 analyze_org_repos.py mycompany          # Analyze organization
+    python3 analyze_org_repos.py johndoe            # Analyze user's repos
     python3 analyze_org_repos.py mycompany --private-only --limit 50
-    python3 analyze_org_repos.py mycompany --export-csv results.csv
+    python3 analyze_org_repos.py johndoe --export-csv results.csv
 
 Requirements:
     - GitHub CLI (gh) must be installed and authenticated
@@ -53,12 +54,38 @@ def run_command(cmd, timeout=300):
         print(f"Error: {e.stderr}")
         return None
 
-def get_organization_repos(org, include_private=True, include_public=True):
-    """Get all repositories in an organization that the user has access to"""
-    print(f"Discovering repositories in organization: {org}")
+def detect_account_type(account):
+    """Detect if the account is an organization or user"""
+    print(f"Detecting account type for: {account}")
     
-    # Build the command
-    cmd_parts = ['gh', 'repo', 'list', org, '--json', 'name,private,language,updatedAt,pushedAt,stargazerCount']
+    # Try organization API first
+    org_check = run_command(f'gh api orgs/{account}')
+    if org_check:
+        try:
+            org_data = json.loads(org_check)
+            if org_data.get('type') == 'Organization':
+                return 'organization', org_data
+        except json.JSONDecodeError:
+            pass
+    
+    # Try user API
+    user_check = run_command(f'gh api users/{account}')
+    if user_check:
+        try:
+            user_data = json.loads(user_check)
+            if user_data.get('type') == 'User':
+                return 'user', user_data
+        except json.JSONDecodeError:
+            pass
+    
+    return None, None
+
+def get_repositories(account, account_type, include_private=True, include_public=True):
+    """Get all repositories for an organization or user that the authenticated user has access to"""
+    print(f"Discovering repositories for {account_type}: {account}")
+    
+    # Build the command - gh repo list works for both orgs and users
+    cmd_parts = ['gh', 'repo', 'list', account, '--json', 'name,private,language,updatedAt,pushedAt,stargazerCount']
     
     if include_private and not include_public:
         cmd_parts.extend(['--visibility', 'private'])
@@ -225,10 +252,13 @@ def analyze_single_repo(org, repo_name, pr_limit=100):
     
     return metrics
 
-def generate_org_summary(all_metrics, org_name):
-    """Generate organization-wide summary statistics"""
+def generate_summary_report(all_metrics, account_name, account_type):
+    """Generate summary statistics for organization or user"""
     print(f"\n{'='*80}")
-    print(f"ORGANIZATION SUMMARY: {org_name}")
+    if account_type == 'organization':
+        print(f"ORGANIZATION SUMMARY: {account_name}")
+    else:
+        print(f"USER REPOSITORY SUMMARY: {account_name}")
     print(f"{'='*80}")
     
     if not all_metrics:
@@ -304,8 +334,8 @@ def export_to_csv(all_metrics, filename):
     print(f"Results exported to {filename}")
 
 def main():
-    parser = argparse.ArgumentParser(description='Analyze all repositories in a GitHub organization')
-    parser.add_argument('organization', help='GitHub organization name')
+    parser = argparse.ArgumentParser(description='Analyze all repositories for a GitHub organization or user')
+    parser.add_argument('account', help='GitHub organization or username')
     parser.add_argument('--private-only', action='store_true', help='Only analyze private repositories')
     parser.add_argument('--public-only', action='store_true', help='Only analyze public repositories')
     parser.add_argument('--limit', type=int, default=100, help='Limit PRs per repository (default: 100)')
@@ -322,23 +352,31 @@ def main():
         print("Please run: gh auth login")
         sys.exit(1)
     
-    # Validate organization access
-    print(f"Checking access to organization: {args.organization}")
-    org_check = run_command(f'gh api orgs/{args.organization}')
-    if not org_check:
-        print(f"Error: Cannot access organization '{args.organization}'")
+    # Detect account type and validate access
+    account_type, account_data = detect_account_type(args.account)
+    
+    if not account_type:
+        print(f"Error: Cannot access account '{args.account}'")
         print("Please check that:")
-        print("1. The organization name is correct")
-        print("2. You have access to the organization")
+        print("1. The account name is correct")
+        print("2. You have access to view the account's repositories")
         print("3. Your GitHub token has the necessary permissions")
         sys.exit(1)
+    
+    print(f"Detected {account_type}: {args.account}")
+    if account_data:
+        if account_type == 'organization':
+            print(f"Organization name: {account_data.get('name', 'N/A')}")
+        else:
+            print(f"User name: {account_data.get('name', 'N/A')}")
+            print(f"Public repositories: {account_data.get('public_repos', 'N/A')}")
     
     # Determine repository visibility settings
     include_private = not args.public_only
     include_public = not args.private_only
     
     # Get repositories
-    repos = get_organization_repos(args.organization, include_private, include_public)
+    repos = get_repositories(args.account, account_type, include_private, include_public)
     
     if not repos:
         print("No repositories found or accessible")
@@ -365,7 +403,7 @@ def main():
     for i, repo in enumerate(repos, 1):
         print(f"\nProgress: {i}/{total_repos}")
         try:
-            metrics = analyze_single_repo(args.organization, repo['name'], args.limit)
+            metrics = analyze_single_repo(args.account, repo['name'], args.limit)
             all_metrics.append(metrics)
         except KeyboardInterrupt:
             print(f"\nAnalysis interrupted by user after {i-1} repositories")
@@ -375,7 +413,7 @@ def main():
             continue
     
     # Generate summary report
-    generate_org_summary(all_metrics, args.organization)
+    generate_summary_report(all_metrics, args.account, account_type)
     
     # Export to CSV if requested
     if args.export_csv:

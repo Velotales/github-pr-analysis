@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Organization Analysis Setup Script
-# This script helps set up and run organization-wide PR analysis
+# GitHub Repository Analysis Setup Script  
+# This script helps set up and run PR analysis for organizations or users
 
 set -e
 
@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 print_header() {
     echo -e "${BLUE}"
     echo "================================================================="
-    echo " GitHub Organization PR Analysis - Setup & Usage Guide"
+    echo " GitHub Repository Analysis - Setup & Usage Guide"
     echo "================================================================="
     echo -e "${NC}"
 }
@@ -62,20 +62,23 @@ setup_authentication() {
 show_usage() {
     echo -e "${BLUE}Usage Examples:${NC}"
     echo ""
-    echo "1. Analyze all repositories in your organization:"
+    echo "1. Analyze all repositories for an organization:"
     echo "   python3 analyze_org_repos.py mycompany"
     echo ""
-    echo "2. Analyze only private repositories:"
+    echo "2. Analyze all repositories for a user:"
+    echo "   python3 analyze_org_repos.py johndoe"
+    echo ""
+    echo "3. Analyze only private repositories:"
     echo "   python3 analyze_org_repos.py mycompany --private-only"
     echo ""
-    echo "3. Export results to CSV:"
-    echo "   python3 analyze_org_repos.py mycompany --export-csv results.csv"
+    echo "4. Export results to CSV:"
+    echo "   python3 analyze_org_repos.py johndoe --export-csv results.csv"
     echo ""
-    echo "4. Quick test (first 5 repos only):"
+    echo "5. Quick test (first 5 repos only):"
     echo "   python3 analyze_org_repos.py mycompany --repo-limit 5"
     echo ""
-    echo "5. Just list repositories without analyzing:"
-    echo "   python3 analyze_org_repos.py mycompany --skip-analysis"
+    echo "6. Just list repositories without analyzing:"
+    echo "   python3 analyze_org_repos.py johndoe --skip-analysis"
     echo ""
     echo -e "${YELLOW}Options:${NC}"
     echo "  --private-only    Only analyze private repositories"
@@ -86,31 +89,37 @@ show_usage() {
     echo "  --skip-analysis   Only list repositories, don't analyze"
 }
 
-test_org_access() {
+test_account_access() {
     if [[ -z "$1" ]]; then
-        echo -e "${RED}Please provide an organization name to test${NC}"
+        echo -e "${RED}Please provide an organization or username to test${NC}"
         return 1
     fi
     
-    local ORG="$1"
-    echo -e "${YELLOW}Testing access to organization: ${ORG}${NC}"
+    local ACCOUNT="$1"
+    echo -e "${YELLOW}Testing access to account: ${ACCOUNT}${NC}"
     
-    if gh api "orgs/${ORG}" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓ Can access organization '${ORG}'${NC}"
-        
-        # Count repos
-        REPO_COUNT=$(gh repo list "$ORG" --limit 1000 --json name | jq length 2>/dev/null || echo "unknown")
-        echo -e "${BLUE}Accessible repositories: ${REPO_COUNT}${NC}"
-        
-        return 0
+    # Try organization first
+    if gh api "orgs/${ACCOUNT}" >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ Can access organization '${ACCOUNT}'${NC}"
+        ACCOUNT_TYPE="organization"
+    elif gh api "users/${ACCOUNT}" >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ Can access user '${ACCOUNT}'${NC}"
+        ACCOUNT_TYPE="user"
     else
-        echo -e "${RED}✗ Cannot access organization '${ORG}'${NC}"
+        echo -e "${RED}✗ Cannot access account '${ACCOUNT}'${NC}"
         echo "This could be because:"
-        echo "  - Organization name is incorrect"
-        echo "  - You don't have access to the organization"
+        echo "  - Account name is incorrect"
+        echo "  - Account doesn't exist"
         echo "  - Your token doesn't have the necessary permissions"
         return 1
     fi
+    
+    # Count repos
+    REPO_COUNT=$(gh repo list "$ACCOUNT" --limit 1000 --json name | jq length 2>/dev/null || echo "unknown")
+    echo -e "${BLUE}Account type: ${ACCOUNT_TYPE}${NC}"
+    echo -e "${BLUE}Accessible repositories: ${REPO_COUNT}${NC}"
+    
+    return 0
 }
 
 main() {
@@ -119,7 +128,7 @@ main() {
     # Check if organization is provided
     if [[ $# -eq 0 ]]; then
         echo "This script helps you set up and run PR analysis across all repositories"
-        echo "in a GitHub organization."
+        echo "for a GitHub organization or user."
         echo ""
         
         if ! check_authentication; then
@@ -128,12 +137,12 @@ main() {
         fi
         
         echo ""
-        echo -e "${YELLOW}Please provide an organization name to get started:${NC}"
-        read -p "Organization name: " ORG_NAME
+        echo -e "${YELLOW}Please provide an organization or username to get started:${NC}"
+        read -p "Organization or username: " ACCOUNT_NAME
         
-        if [[ -n "$ORG_NAME" ]]; then
+        if [[ -n "$ACCOUNT_NAME" ]]; then
             echo ""
-            test_org_access "$ORG_NAME"
+            test_account_access "$ACCOUNT_NAME"
             echo ""
             show_usage
         fi
@@ -147,14 +156,14 @@ main() {
         fi
         
         shift
-        test_org_access "$1"
+        test_account_access "$1"
         
     elif [[ "$1" == "--setup" ]]; then
         setup_authentication
         
     else
         # Run the analysis
-        ORG_NAME="$1"
+        ACCOUNT_NAME="$1"
         shift
         
         if ! check_authentication; then
@@ -163,10 +172,10 @@ main() {
         fi
         
         echo ""
-        echo -e "${GREEN}Running analysis for organization: ${ORG_NAME}${NC}"
+        echo -e "${GREEN}Running analysis for account: ${ACCOUNT_NAME}${NC}"
         echo ""
         
-        python3 "./analyze_org_repos.py" "$ORG_NAME" "$@"
+        python3 "./analyze_org_repos.py" "$ACCOUNT_NAME" "$@"
     fi
 }
 
