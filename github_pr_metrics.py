@@ -38,7 +38,8 @@ def get_pull_requests(repo, limit=100):
     """Fetch pull requests from the repository"""
     print(f"Fetching pull requests from {repo}...")
     
-    cmd = f'gh pr list --repo {repo} --state all --limit {limit} --json number,title,commits,mergedAt,createdAt,baseRefName,headRefName,mergeable'
+    # Remove 'commits' from the fields here
+    cmd = f'gh pr list --repo {repo} --state all --limit {limit} --json number,title,mergedAt,createdAt,baseRefName,headRefName,mergeable'
     output = run_command(cmd)
     
     if not output:
@@ -96,7 +97,7 @@ def analyze_pr_metrics(prs, repo):
     
     if not prs:
         print("No pull requests found")
-        return
+        return 0, 0, {}
     
     # Basic statistics
     total_prs = len(prs)
@@ -157,7 +158,7 @@ def analyze_pr_metrics(prs, repo):
 
 def get_repository_info(repo):
     """Get basic repository information"""
-    cmd = f'gh repo view {repo} --json name,owner,defaultBranch,pushedAt'
+    cmd = f'gh repo view {repo} --json name,owner,defaultBranchRef,pushedAt'
     output = run_command(cmd)
     
     if output:
@@ -189,7 +190,7 @@ def main():
     # Get repository info
     repo_info = get_repository_info(args.repo)
     if repo_info:
-        default_branch = repo_info.get('defaultBranch', args.branch)
+        default_branch = (repo_info.get('defaultBranchRef') or {}).get('name', args.branch)
         print(f"Default branch: {default_branch}")
         args.branch = default_branch
     
